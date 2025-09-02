@@ -66,7 +66,7 @@ graph TD
         A[Web / Mobile App]
     end
 
-    subgraph NetraDrive API (FastAPI)
+    subgraph NetraDrive API FastAPI
         direction LR
         R{Routers}
         S{Services}
@@ -77,8 +77,8 @@ graph TD
 
     subgraph Data Layer
         direction TB
-        DB[🗄️ MongoDB (Metadata)]
-        TG[📄 Telegram (File Storage)]
+        DB[🗄️ MongoDB Metadata]
+        TG[📄 Telegram File Storage]
     end
 
     A -- "REST API / WebSocket" --> R
@@ -100,13 +100,13 @@ Follow these steps to get the NetraDrive API server running on your local machin
 
 - Clone the repository:
 
-      ```bash
+  ```bash
 
-      git clone https://github.com/snehkr/netradrive-backend.git
+  git clone https://github.com/snehkr/netradrive-backend.git
 
-      cd netradrive-backend
+  cd netradrive-backend
 
-      ```
+  ```
 
 - Create a virtual environment and install dependencies:
 
