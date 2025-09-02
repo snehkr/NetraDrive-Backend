@@ -1,0 +1,10 @@
+fastapi[all]
+motor
+python-dotenv
+passlib[bcrypt]
+python-jose[cryptography]
+pyrogram
+tgcrypto
+pymongo[srv]
+pydantic-settings
+sse-starlette

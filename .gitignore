@@ -1,0 +1,20 @@
+# Environment variables
+.env
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# temp folders
+temp_downloads/
+temp_uploads/
+temp_chunks/
+temp_previews/
+
+# Session files
+session/
