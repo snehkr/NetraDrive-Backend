@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     mail_from: str
     mail_port: int
     mail_server: str
-    base_url: str = "http://localhost:5173"
+    base_url: str = "https://netradrive.snehkr.in"
 
     model_config = SettingsConfigDict(env_file=".env")
 
