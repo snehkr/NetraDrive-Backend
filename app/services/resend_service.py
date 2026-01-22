@@ -7,7 +7,7 @@ resend.api_key = settings.resend_api_key
 
 
 async def send_verification_email(email: EmailStr, username: str, token: str):
-    verification_link = f"{settings.base_url}/verify-email?token={token}"
+    verification_link = f"{settings.base_url}/#/verify-email?token={token}"
 
     html = f"""
     <!DOCTYPE html>
@@ -68,7 +68,7 @@ async def send_verification_email(email: EmailStr, username: str, token: str):
 
 
 async def send_reset_password_email(email: EmailStr, username: str, token: str):
-    reset_link = f"{settings.base_url}/reset-password?token={token}"
+    reset_link = f"{settings.base_url}/#/reset-password?token={token}"
 
     html = f"""
     <!DOCTYPE html>

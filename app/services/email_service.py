@@ -22,7 +22,7 @@ async def send_verification_email(email: EmailStr, username: str, token: str):
     """
     Sends a verification email with a link to verify the account.
     """
-    verification_link = f"{settings.base_url}/verify-email?token={token}"
+    verification_link = f"{settings.base_url}/#/verify-email?token={token}"
 
     html = f"""
     <!DOCTYPE html>
@@ -128,7 +128,7 @@ async def send_reset_password_email(email: EmailStr, username: str, token: str):
     Sends an email with a link to reset the password.
     """
     # Assuming your frontend handles the reset page at /reset-password?token=...
-    reset_link = f"{settings.base_url}/reset-password?token={token}"
+    reset_link = f"{settings.base_url}/#/reset-password?token={token}"
 
     html = f"""
     <!DOCTYPE html>
