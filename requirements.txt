@@ -3,6 +3,7 @@ motor
 aiofiles
 python-dotenv
 passlib[bcrypt]
+python-magic
 python-jose[cryptography]
 pyrogram
 fastapi-mail
