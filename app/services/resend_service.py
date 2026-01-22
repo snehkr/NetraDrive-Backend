@@ -7,7 +7,7 @@ resend.api_key = settings.resend_api_key
 
 
 async def send_verification_email(email: EmailStr, username: str, token: str):
-    verification_link = f"{settings.base_url}/api/v1/auth/verify-email?token={token}"
+    verification_link = f"{settings.base_url}/verify-email?token={token}"
 
     html = f"""
     <!DOCTYPE html>
