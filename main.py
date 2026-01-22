@@ -44,10 +44,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS Configuration
+allow_origins = [
+    "https://netradrive.snehkr.in",
+    "https://netradrive.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
