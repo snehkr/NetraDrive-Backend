@@ -154,7 +154,7 @@ Follow these steps to get the NetraDrive API server running on your local machin
 - Run the server:
 
   ```bash
-  uvicorn app.main:app --reload
+  uvicorn main:app --reload
   ```
 
 - Access the API Docs:
@@ -171,7 +171,8 @@ Here is a summary of the available API endpoints. All endpoints are prefixed wit
 |                                                          |          |                                                               |
 | `/signup`                                                | `POST`   | Register a new user.                                          |
 | `/token`                                                 | `POST`   | Login to get access and refresh tokens.                       |
-| `/token`                                                 | `POST`   | Generate a new access token using a refresh token.            |
+| `/refresh_token`                                         | `POST`   | Generate a new access token using a refresh token.            |
+| `/verify-email `                                         | `GET`    | Verify a user email                                           |
 |                                                          |          |                                                               |
 | **🗂️ Folders (`/api/v1/folders`)**                       |          |                                                               |
 |                                                          |          |                                                               |

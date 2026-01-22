@@ -9,7 +9,7 @@ from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from urllib.parse import urlparse
-
+from app.services.folder_service import propagate_size_change
 from app.utils.format_utils import format_bytes, format_eta
 from app.auth.auth import get_current_user
 from app.models.file import FileInDB, URLUploadRequest, UploadJob, URLUploadResponse
@@ -131,6 +131,10 @@ async def process_url_download(
         )
         file_dict = file_metadata.model_dump(by_alias=True, exclude=["id"])
         result = await file_collection.insert_one(file_dict)
+
+        # Propagate size change to parent folders
+        if folder_id:
+            await propagate_size_change(folder_id, actual_file_size, owner_id)
 
         await upload_job_collection.update_one(
             {"job_id": job_id},

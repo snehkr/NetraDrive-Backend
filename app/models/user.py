@@ -36,6 +36,7 @@ class UserBase(BaseModel):
 class UserInDB(UserBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     hashed_password: str
+    is_verified: bool = False
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,

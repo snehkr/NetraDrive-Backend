@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     telegram_workdir: str
     telegram_storage_chat_id: int
 
+    # Email Settings
+    mail_username: str
+    mail_password: str
+    mail_from: str
+    mail_port: int
+    mail_server: str
+    base_url: str = "http://localhost:5173"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

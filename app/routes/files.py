@@ -1,24 +1,30 @@
 import hashlib
 import os
-import tempfile
 import uuid
 import aiofiles
 import magic
 from datetime import datetime
 from typing import List, Optional
 from bson import ObjectId
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+    Response,
+)
 from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
 
 from app.auth.auth import get_current_user
-
-# MODIFIED: Added folder_collection to the import
 from app.database import file_collection
 from app.models.file import FileInDB
-
-# ADDED: Import for the FolderInDB model
 from app.models.user import UserInDB
-from app.services.folder_service import check_folder_ownership
+from app.services.folder_service import check_folder_ownership, propagate_size_change
 from app.services.telegram_service import telegram_service
 from app.utils.exceptions import forbidden_exception, not_found_exception
 
@@ -80,8 +86,10 @@ async def upload_file(
                 detail="This file already exists in your storage (same content).",
             )
 
-        # Detect MIME type
-        actual_mime_type = magic.from_file(file_path, mime=True)
+        # Detect MIME type (Blocking I/O fixed)
+        actual_mime_type = await run_in_threadpool(
+            magic.from_file, file_path, mime=True
+        )
         actual_file_size = os.path.getsize(file_path)
 
         # Upload file to Telegram
@@ -103,6 +111,10 @@ async def upload_file(
         file_dict = file_metadata.model_dump(by_alias=True, exclude=["id"])
         result = await file_collection.insert_one(file_dict)
         created_file = await file_collection.find_one({"_id": result.inserted_id})
+
+        # Propagate size change to parent folders
+        if folder_id:
+            await propagate_size_change(folder_id, actual_file_size, current_user.id)
 
         return FileInDB(**created_file)
 
@@ -145,7 +157,7 @@ async def list_files(
 # Download file
 @router.get("/{file_id}/download")
 async def download_file(
-    file_id: str, current_user: UserInDB = Depends(get_current_user)
+    file_id: str, request: Request, current_user: UserInDB = Depends(get_current_user)
 ):
     file_doc = await file_collection.find_one({"_id": ObjectId(file_id)})
     if not file_doc:
@@ -153,32 +165,44 @@ async def download_file(
     if file_doc["owner_id"] != current_user.id:
         raise forbidden_exception("You do not own this file")
 
-    temp_file_path = os.path.join(
-        tempfile.gettempdir(), f"{uuid.uuid4()}_{file_doc['name']}"
-    )
+    # Handle Range header for partial content
+    file_size = file_doc["size"]
+    range_header = request.headers.get("range")
+    start_byte = 0
+    end_byte = file_size - 1
+    status_code = 200
 
-    # Download file from Telegram
-    await telegram_service.download_file(
-        file_doc["tg_message_id"],
-        temp_file_path,
-        file_doc["name"],
-        current_user.username,
-    )
-
-    # Generator to stream file in chunks safely
-    def file_iterator(path, chunk_size=5 * 1024 * 1024):  # 5MB chunks
+    if range_header:
         try:
-            with open(path, "rb") as f:
-                while chunk := f.read(chunk_size):
-                    yield chunk
-        finally:
-            if os.path.exists(path):
-                os.remove(path)
+            unit, ranges = range_header.split("=")
+            if unit == "bytes":
+                start_str, end_str = ranges.split("-")
+                start_byte = int(start_str) if start_str else 0
+                end_byte = int(end_str) if end_str else file_size - 1
+                if start_byte >= file_size:
+                    return Response(
+                        status_code=416,
+                        headers={"Content-Range": f"bytes */{file_size}"},
+                    )
+                status_code = 206
+        except:
+            pass
+
+    content_length = end_byte - start_byte + 1
+    headers = {
+        "Content-Disposition": f'attachment; filename="{file_doc["name"]}"',
+        "Content-Length": str(content_length),
+        "Content-Range": f"bytes {start_byte}-{end_byte}/{file_size}",
+        "Accept-Ranges": "bytes",
+    }
 
     return StreamingResponse(
-        file_iterator(temp_file_path),
+        telegram_service.stream_file(
+            file_doc["tg_message_id"], file_size, start_byte, end_byte
+        ),
+        status_code=status_code,
         media_type=file_doc["mime_type"],
-        headers={"Content-Disposition": f'attachment; filename="{file_doc["name"]}"'},
+        headers=headers,
     )
 
 
@@ -217,6 +241,13 @@ async def permanently_delete_file(
     )
     if not file_doc:
         raise not_found_exception("File not found or you do not have permission")
+
+    # Propagate size change to parent folders
+    if file_doc.get("folder_id"):
+        # We subtract the size (negative value)
+        await propagate_size_change(
+            file_doc["folder_id"], -file_doc["size"], current_user.id
+        )
 
     message_id = file_doc.get("tg_message_id")
 

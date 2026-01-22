@@ -5,12 +5,12 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from bson import ObjectId
-
 from app.auth.auth import get_current_user
 from app.models.file import FileInDB
 from app.models.folder import FolderInDB
 from app.models.user import UserInDB
 from app.database import file_collection, folder_collection
+from app.services.folder_service import propagate_size_change
 from app.services.folder_service import get_all_nested_children
 from app.services.telegram_service import telegram_service
 from app.utils.exceptions import (
@@ -99,7 +99,7 @@ async def move_item(
 ):
     """
     Moves a file or folder to a new parent folder (or to the root).
-    Includes checks to prevent invalid moves.
+    Includes checks to prevent invalid moves and updates folder sizes.
     """
     collection = folder_collection if item_type == "folder" else file_collection
     field_to_update = "parent_id" if item_type == "folder" else "folder_id"
@@ -111,6 +111,12 @@ async def move_item(
     if not item_to_move:
         raise not_found_exception(f"{item_type.capitalize()} not found.")
 
+    # Capture the old parent ID before we change it
+    old_parent_id = (
+        item_to_move.get("parent_id")
+        if item_type == "folder"
+        else item_to_move.get("folder_id")
+    )
     target_parent_id = request.new_parent_id
 
     # 2. Handle moving to a specific folder
@@ -134,13 +140,23 @@ async def move_item(
                     400, "Cannot move a folder into one of its own sub-folders."
                 )
 
-    # 3. If target_parent_id is None, the item is being moved to the root.
-    #    No special checks are needed for this case.
-
-    # 4. Perform the update
+    # 3. Perform the update
     await collection.update_one(
         {"_id": ObjectId(item_id)}, {"$set": {field_to_update: target_parent_id}}
     )
+
+    # 4. Fix Folder Sizes (Only if moving a FILE)
+    # We must subtract size from the old folder and add it to the new folder
+    if item_type == "file":
+        file_size = item_to_move.get("size", 0)
+
+        # Subtract from old folder (if it wasn't root)
+        if old_parent_id:
+            await propagate_size_change(old_parent_id, -file_size, current_user.id)
+
+        # Add to new folder (if it's not root)
+        if target_parent_id:
+            await propagate_size_change(target_parent_id, file_size, current_user.id)
 
     return {"message": f"{item_type.capitalize()} moved successfully."}
 

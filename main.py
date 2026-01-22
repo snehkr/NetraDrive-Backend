@@ -1,7 +1,10 @@
+import os
+import shutil
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.telegram_service import telegram_service
+from app.database import init_indexes
 from app.routes import (
     auth,
     download,
@@ -10,6 +13,7 @@ from app.routes import (
     tasks,
     file_actions,
     users,
+    share,
     ws_tasks,
 )
 
@@ -17,6 +21,16 @@ from app.routes import (
 # Lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Clean Temporary Directories
+    temp_dirs = ["temp_uploads", "temp_downloads", "temp_chunks", "temp_previews"]
+    for dir_name in temp_dirs:
+        if os.path.exists(dir_name):
+            shutil.rmtree(dir_name)  # Delete existing mess
+        os.makedirs(dir_name, exist_ok=True)  # Recreate clean folders
+    print("Temporary directories cleaned and recreated.")
+
+    # Initialize DB Indexes
+    await init_indexes()
     await telegram_service.start()
     yield
     await telegram_service.stop()
@@ -55,3 +69,8 @@ app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(file_actions.router, prefix="/api/v1", tags=["File Actions"])
 app.include_router(download.router, prefix="/api/v1", tags=["File Download"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(share.router, prefix="/api/v1/share", tags=["Sharing"])
+
+# Public Route (Accessing links - Keep prefix short)
+# This will make the url: yourdomain.com/s/{uuid}
+app.include_router(share.router, prefix="/s", tags=["Public Share"])

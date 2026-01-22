@@ -4,6 +4,7 @@ python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
 pyrogram
+fastapi-mail
 tgcrypto
 pymongo[srv]
 pydantic-settings

@@ -14,7 +14,6 @@ from app.services.folder_service import (
     check_folder_ownership,
     get_all_nested_children,
     update_item_deleted_status,
-    calculate_folder_size,
 )
 from app.services.telegram_service import telegram_service
 
@@ -87,15 +86,7 @@ async def list_folders(
 
     folders = await folder_collection.find(query).to_list(1000)
 
-    async def get_size(folder):
-        size = await calculate_folder_size(str(folder["_id"]), current_user.id)
-        folder["size"] = size
-        return folder
-
-    # Run all size calculations concurrently
-    sized_folders = await asyncio.gather(*[get_size(folder) for folder in folders])
-
-    return sized_folders
+    return folders
 
 
 # Get the folder tree structure

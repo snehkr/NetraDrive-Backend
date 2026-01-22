@@ -1,6 +1,7 @@
 import os
 from pyrogram import Client
 from pyrogram.types import Message
+from typing import AsyncGenerator
 from app.config import settings
 from app.utils.progress import progress
 from app.services.transfer_manager import transfer_manager
@@ -54,6 +55,54 @@ class TelegramService:
             return {"task_id": task_id, "chat_id": msg.chat.id, "message_id": msg.id}
 
         return await transfer_manager.run_task(task_id, coro())
+
+    # -------------------------
+    # Stream file (Zero Latency & Range Support)
+    # -------------------------
+    async def stream_file(
+        self, message_id: int, file_size: int, start_byte: int = 0, end_byte: int = None
+    ) -> AsyncGenerator[bytes, None]:
+        """
+        Yields file chunks directly from Telegram, supporting Range requests.
+        """
+        if end_byte is None:
+            end_byte = file_size - 1
+
+        # Calculate which 1MB chunk to start from
+        chunk_size = 1024 * 1024
+        start_chunk_index = start_byte // chunk_size
+
+        # Calculate offset within that first chunk
+        offset_in_first_chunk = start_byte % chunk_size
+
+        # Total bytes user wants
+        bytes_to_serve = end_byte - start_byte + 1
+        bytes_served = 0
+
+        message = await self.client.get_messages(self.chat_id, message_id)
+        if not message or not message.document:
+            raise ValueError("File not found.")
+
+        # Pyrogram's stream_media accepts 'offset' in chunks (not bytes)
+        stream = self.client.stream_media(message, offset=start_chunk_index)
+
+        async for chunk in stream:
+            # If we have served all requested bytes, stop
+            if bytes_served >= bytes_to_serve:
+                break
+
+            # If this is the first chunk, slice off the beginning
+            if offset_in_first_chunk > 0:
+                chunk = chunk[offset_in_first_chunk:]
+                offset_in_first_chunk = 0  # Only do this once
+
+            # If adding this chunk exceeds the request, trim the end
+            if bytes_served + len(chunk) > bytes_to_serve:
+                remaining = bytes_to_serve - bytes_served
+                chunk = chunk[:remaining]
+
+            yield chunk
+            bytes_served += len(chunk)
 
     # -------------------------
     # Full download (for user)
