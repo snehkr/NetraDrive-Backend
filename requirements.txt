@@ -1,6 +1,7 @@
 fastapi[all]
 motor
 aiofiles
+resend
 python-dotenv
 bcrypt==3.2.2
 passlib[bcrypt]==1.7.4

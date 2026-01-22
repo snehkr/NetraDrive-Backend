@@ -20,7 +20,7 @@ from app.auth.schemas import (
 from app.config import settings
 from app.database import user_collection
 from app.models.user import UserBase, UserInDB
-from app.services.email_service import (
+from app.services.resend_service import (
     send_reset_password_email,
     send_verification_email,
 )
