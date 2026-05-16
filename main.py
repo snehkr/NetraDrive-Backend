@@ -50,6 +50,7 @@ allow_origins = [
     "https://netradrive.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://tttest.co.in"
 ]
 
 # CORS Middleware
