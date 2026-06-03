@@ -12,14 +12,13 @@ os.makedirs(WORK_DIR, exist_ok=True)
 
 # Initialize the Telegram client purely in-memory using your session string
 app = Client(
-    name="netradrive",
+    name="netradrive_memory",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     session_string=settings.telegram_session_string,
-    workdir=WORK_DIR,
-    in_memory=False,
+    in_memory=True,
     sleep_threshold=15,
-    max_concurrent_transmissions=5,
+    max_concurrent_transmissions=3,
 )
 
 
@@ -31,7 +30,7 @@ class TelegramService:
 
     async def start(self):
         if not self.client.is_connected:
-            print(f"Connecting Pyrogram client (Workdir: {WORK_DIR})...")
+            print("Connecting Pyrogram client (In-Memory)...")
             await self.client.start()
 
             try:

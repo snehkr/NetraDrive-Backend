@@ -18,6 +18,16 @@ class TransferManager:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.preview_queue = asyncio.Queue()
         self.preview_semaphore = asyncio.Semaphore(max_preview)
+        self.bg_tasks = set()
+
+    # -------------------------
+    # Background task runner
+    # -------------------------
+    def fire_bg_task(self, coro):
+        """Safely executes background tasks without blocking the main event loop."""
+        task = asyncio.create_task(coro)
+        self.bg_tasks.add(task)
+        task.add_done_callback(self.bg_tasks.discard)
 
     # -------------------------
     # Start main task
@@ -102,7 +112,7 @@ class TransferManager:
 
             # Push WS event
             message = json.dumps({"event": "completed", "task": task})
-            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
+            self.fire_bg_task(ws_manager.send_to_user(task["user_id"], message))
         except Exception as e:
             if (
                 cancel_manager.is_cancelled(task_id)
@@ -114,21 +124,21 @@ class TransferManager:
 
                 # Push WS event
                 message = json.dumps({"event": "cancelled", "task": task})
-                asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
+                self.fire_bg_task(ws_manager.send_to_user(task["user_id"], message))
             else:
                 task["status"] = "failed"
                 result = {"task_id": task_id, "status": "failed", "error": str(e)}
 
                 # Push WS event
                 message = json.dumps({"event": "failed", "task": task})
-                asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
+                self.fire_bg_task(ws_manager.send_to_user(task["user_id"], message))
 
         finally:
             progress_manager.finish(task_id)
             cancel_manager.finish(task_id)
             await self._save_progress_db(task_id)
             # schedule cleanup
-            asyncio.create_task(self._cleanup_task(task_id))
+            self.fire_bg_task(self._cleanup_task(task_id))
 
         return result
 
@@ -162,15 +172,15 @@ class TransferManager:
         now = time.time()
 
         # 1. Throttle DB updates to once per second (or when 100% complete)
-        if now - task.get("last_db_update", 0) > 1.0 or transferred == total:
+        if now - task.get("last_db_update", 0) > 1.0 and transferred < total:
             task["last_db_update"] = now
-            asyncio.create_task(self._save_progress_db(task_id))
+            self.fire_bg_task(self._save_progress_db(task_id))
 
         # 2. Throttle WebSockets to once per 0.5 seconds
         if now - task.get("last_ws_update", 0) > 0.5 or transferred == total:
             task["last_ws_update"] = now
             message = json.dumps({"event": "progress", "task": task})
-            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
+            self.fire_bg_task(ws_manager.send_to_user(task["user_id"], message))
 
     # -------------------------
     # Save progress to DB
@@ -225,7 +235,7 @@ class TransferManager:
                 {"$set": {"status": "cancelled", "updated_at": datetime.utcnow()}},
             )
             message = json.dumps({"event": "cancelled", "task": task})
-            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
+            self.fire_bg_task(ws_manager.send_to_user(task["user_id"], message))
 
     # -------------------------
     # List all tasks
