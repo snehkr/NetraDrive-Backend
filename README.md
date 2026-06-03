@@ -143,7 +143,7 @@ Follow these steps to get the NetraDrive API server running on your local machin
 
   TELEGRAM_API_ID="your_api_id"
   TELEGRAM_API_HASH="your_api_hash"
-  TELEGRAM_BOT_TOKEN="your_bot_token_from_BotFather"
+  TELEGRAM_SESSION_STRING="paste_your_long_exported_session_string_here"
 
   # The ID of the private Telegram channel/chat where files will be stored
 

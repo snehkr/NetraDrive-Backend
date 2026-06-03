@@ -1,13 +1,9 @@
-import os
 from pyrogram import Client
 from pyrogram.types import Message
 from typing import AsyncGenerator
 from app.config import settings
 from app.utils.progress import progress
 from app.services.transfer_manager import transfer_manager
-
-# Create the working directory if it doesn't exist
-os.makedirs(settings.telegram_workdir, exist_ok=True)
 
 # Initialize the Telegram client
 app = Client(
