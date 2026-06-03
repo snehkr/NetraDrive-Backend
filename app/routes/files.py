@@ -2,7 +2,6 @@ import hashlib
 import os
 import uuid
 import aiofiles
-import magic
 import mimetypes
 from datetime import datetime
 from typing import List, Optional
@@ -19,7 +18,6 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import StreamingResponse
-from fastapi.concurrency import run_in_threadpool
 
 from app.auth.auth import get_current_user
 from app.database import file_collection
@@ -87,13 +85,9 @@ async def upload_file(
                 detail="This file already exists in your storage (same content).",
             )
 
-        # Detect MIME type (with a safe fallback for cloud environments)
-        try:
-            actual_mime_type = await run_in_threadpool(
-                magic.from_file, file_path, mime=True
-            )
-        except Exception:
-            # Fallback if libmagic C-library is missing on Render/VPS
+        # Detect MIME type
+        actual_mime_type = file.content_type
+        if not actual_mime_type or actual_mime_type == "application/octet-stream":
             actual_mime_type, _ = mimetypes.guess_type(file.filename)
             actual_mime_type = actual_mime_type or "application/octet-stream"
 
@@ -103,7 +97,7 @@ async def upload_file(
         tg_response = await telegram_service.upload_file(
             file_path, file.filename, current_user.username
         )
-        
+
         # Check Telegram upload response
         if tg_response.get("status") == "failed":
             raise HTTPException(

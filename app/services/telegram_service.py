@@ -1,4 +1,3 @@
-import os
 from pyrogram import Client
 from pyrogram.types import Message
 from typing import AsyncGenerator
@@ -14,6 +13,7 @@ app = Client(
     session_string=settings.telegram_session_string,
     in_memory=True,
     sleep_threshold=15,
+    max_concurrent_transmissions=5,
 )
 
 

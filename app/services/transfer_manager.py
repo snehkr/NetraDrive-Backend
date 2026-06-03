@@ -102,7 +102,7 @@ class TransferManager:
 
             # Push WS event
             message = json.dumps({"event": "completed", "task": task})
-            await ws_manager.send_to_user(task["user_id"], message)
+            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
         except Exception as e:
             if (
                 cancel_manager.is_cancelled(task_id)
@@ -114,14 +114,14 @@ class TransferManager:
 
                 # Push WS event
                 message = json.dumps({"event": "cancelled", "task": task})
-                await ws_manager.send_to_user(task["user_id"], message)
+                asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
             else:
                 task["status"] = "failed"
                 result = {"task_id": task_id, "status": "failed", "error": str(e)}
 
                 # Push WS event
                 message = json.dumps({"event": "failed", "task": task})
-                await ws_manager.send_to_user(task["user_id"], message)
+                asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
 
         finally:
             progress_manager.finish(task_id)
@@ -224,9 +224,8 @@ class TransferManager:
                 {"task_id": task_id},
                 {"$set": {"status": "cancelled", "updated_at": datetime.utcnow()}},
             )
-            await ws_manager.send_to_user(
-                task["user_id"], json.dumps({"event": "cancelled", "task": task})
-            )
+            message = json.dumps({"event": "cancelled", "task": task})
+            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
 
     # -------------------------
     # List all tasks
