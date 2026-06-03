@@ -1,4 +1,3 @@
-# app/services/transfer_manager.py
 import json
 import uuid
 import asyncio
@@ -33,6 +32,8 @@ class TransferManager:
             "transferred": 0,
             "total": 0,
             "user_id": user_id,
+            "last_db_update": 0,  # Used for throttling
+            "last_ws_update": 0,  # Used for throttling
         }
         progress_manager.start(task_id, file_name)
         cancel_manager.start(task_id)
@@ -52,6 +53,8 @@ class TransferManager:
             "transferred": 0,
             "total": 0,
             "user_id": user_id,
+            "last_db_update": 0,
+            "last_ws_update": 0,
         }
         progress_manager.start(task_id, file_name)
         cancel_manager.start(task_id)
@@ -142,23 +145,32 @@ class TransferManager:
         ]:
             self.tasks.pop(task_id, None)
 
-    # -------------------------
-    # Update progress
-    # -------------------------
+    # -------------------------------------------------------------
+    # THROTTLE PROGRESS TO PREVENT EVENT LOOP DEADLOCK
+    # -------------------------------------------------------------
     async def update_progress(
         self, task_id: str, transferred: int, total: int, user_id: str
     ):
         task = self.tasks.get(task_id)
         if not task:
             return
+
         task["transferred"] = transferred
         task["total"] = total
         task["user_id"] = user_id
-        await self._save_progress_db(task_id)
 
-        # WS event
-        message = json.dumps({"event": "progress", "task": task})
-        await ws_manager.send_to_user(task["user_id"], message)
+        now = time.time()
+
+        # 1. Throttle DB updates to once per second (or when 100% complete)
+        if now - task.get("last_db_update", 0) > 1.0 or transferred == total:
+            task["last_db_update"] = now
+            asyncio.create_task(self._save_progress_db(task_id))
+
+        # 2. Throttle WebSockets to once per 0.5 seconds
+        if now - task.get("last_ws_update", 0) > 0.5 or transferred == total:
+            task["last_ws_update"] = now
+            message = json.dumps({"event": "progress", "task": task})
+            asyncio.create_task(ws_manager.send_to_user(task["user_id"], message))
 
     # -------------------------
     # Save progress to DB
@@ -168,8 +180,8 @@ class TransferManager:
         if not task:
             return
 
-        transferred = task["transferred"]
-        total = task["total"]
+        transferred = task.get("transferred", 0)
+        total = task.get("total", 0)
         percent = (transferred / total * 100) if total else 0
         elapsed = time.time() - task.get("start_time", time.time())
         speed = transferred / elapsed if elapsed > 0 else 0
@@ -181,7 +193,7 @@ class TransferManager:
             {
                 "$set": {
                     "file_name": task["file_name"],
-                    "type": task["type"],
+                    "type": task.get("type", "main"),
                     "status": task["status"],
                     "transferred": transferred,
                     "total": total,
@@ -212,11 +224,15 @@ class TransferManager:
                 {"task_id": task_id},
                 {"$set": {"status": "cancelled", "updated_at": datetime.utcnow()}},
             )
-
-            # Push WS event
             await ws_manager.send_to_user(
                 task["user_id"], json.dumps({"event": "cancelled", "task": task})
             )
+
+    # -------------------------
+    # List all tasks
+    # -------------------------
+    def list_all_tasks(self, user_id: str = None):
+        return self.get_tasks_for_ui(user_id)
 
     # -------------------------
     # Get tasks for UI
@@ -226,8 +242,8 @@ class TransferManager:
         for task_id, task in self.tasks.items():
             if user_id and task.get("user_id") != user_id:
                 continue
-            transferred = task["transferred"]
-            total = task["total"]
+            transferred = task.get("transferred", 0)
+            total = task.get("total", 0)
             start_time = task.get("start_time")
             percent = (transferred / total * 100) if total else 0
             elapsed = time.time() - start_time if start_time else 0

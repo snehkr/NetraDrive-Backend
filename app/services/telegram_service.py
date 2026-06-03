@@ -6,18 +6,13 @@ from app.config import settings
 from app.utils.progress import progress
 from app.services.transfer_manager import transfer_manager
 
-# Create a safe temporary directory for the ephemeral session file
-WORK_DIR = "/tmp/netradrive"
-os.makedirs(WORK_DIR, exist_ok=True)
-
-# Initialize the Telegram client
+# Initialize the Telegram client purely in-memory using your session string
 app = Client(
-    name="netradrive_cloud",
+    name="netradrive_memory",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     session_string=settings.telegram_session_string,
-    workdir=WORK_DIR,
-    in_memory=False,  # Use ephemeral disk to prevent SQLite memory deadlocks
+    in_memory=True,
     sleep_threshold=15,
 )
 
@@ -30,15 +25,21 @@ class TelegramService:
 
     async def start(self):
         if not self.client.is_connected:
+            print("Connecting Pyrogram client (In-Memory)...")
             await self.client.start()
-            print("Pyrogram client connected.")
 
-            # Force cache the storage chat to prevent PeerIdInvalid
             try:
-                chat = await self.client.get_chat(self.chat_id)
-                print(f"Storage channel '{chat.title or chat.id}' successfully cached!")
+                await self.client.get_chat(self.chat_id)
+                print(f"Storage chat '{self.chat_id}' successfully cached.")
             except Exception as e:
-                print(f"WARNING: Failed to cache storage chat on startup. {str(e)}")
+                print(f"Warning: {e}. Fetching dialogs to populate peer database...")
+                try:
+                    # Fetching dialogs forces Pyrogram to securely cache chat hashes
+                    async for _ in self.client.get_dialogs(limit=50):
+                        pass
+                    print("Peer database populated successfully!")
+                except Exception as ex:
+                    print(f"Failed to fetch dialogs: {ex}")
 
     async def stop(self):
         if self.client.is_connected:
