@@ -3,6 +3,7 @@ import os
 import uuid
 import aiofiles
 import magic
+import mimetypes
 from datetime import datetime
 from typing import List, Optional
 from bson import ObjectId
@@ -86,16 +87,29 @@ async def upload_file(
                 detail="This file already exists in your storage (same content).",
             )
 
-        # Detect MIME type (Blocking I/O fixed)
-        actual_mime_type = await run_in_threadpool(
-            magic.from_file, file_path, mime=True
-        )
+        # Detect MIME type (with a safe fallback for cloud environments)
+        try:
+            actual_mime_type = await run_in_threadpool(
+                magic.from_file, file_path, mime=True
+            )
+        except Exception:
+            # Fallback if libmagic C-library is missing on Render/VPS
+            actual_mime_type, _ = mimetypes.guess_type(file.filename)
+            actual_mime_type = actual_mime_type or "application/octet-stream"
+
         actual_file_size = os.path.getsize(file_path)
 
         # Upload file to Telegram
         tg_response = await telegram_service.upload_file(
             file_path, file.filename, current_user.username
         )
+        
+        # Check Telegram upload response
+        if tg_response.get("status") == "failed":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Telegram upload failed: {tg_response.get('error')}",
+            )
 
         # Save metadata to DB
         file_metadata = FileInDB(

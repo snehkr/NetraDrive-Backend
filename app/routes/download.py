@@ -5,6 +5,7 @@ import os
 import aiofiles
 import httpx
 import magic
+import mimetypes
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
@@ -114,10 +115,20 @@ async def process_url_download(
         if existing_file:
             raise ValueError("Duplicate file content already exists in your storage.")
 
-        actual_mime_type = magic.from_file(file_path, mime=True)
+        # Safe MIME detection
+        try:
+            actual_mime_type = magic.from_file(file_path, mime=True)
+        except Exception:
+            actual_mime_type, _ = mimetypes.guess_type(filename)
+            actual_mime_type = actual_mime_type or "application/octet-stream"
+            
         actual_file_size = os.path.getsize(file_path)
 
         tg_response = await telegram_service.upload_file(file_path, filename, username)
+        
+        # Check for failure
+        if tg_response.get("status") == "failed":
+            raise ValueError(f"Telegram upload failed: {tg_response.get('error')}")
 
         file_metadata = FileInDB(
             name=filename,

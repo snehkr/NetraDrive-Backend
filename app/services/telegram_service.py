@@ -24,6 +24,13 @@ class TelegramService:
     async def start(self):
         if not self.client.is_connected:
             await self.client.start()
+            print("Fetching dialogs to populate peer cache...")
+            try:
+                async for _ in self.client.get_dialogs(limit=50):
+                    pass
+                print("Peer cache successfully populated.")
+            except Exception as e:
+                print(f"Failed to fetch dialogs: {e}")
 
     async def stop(self):
         if self.client.is_connected:
