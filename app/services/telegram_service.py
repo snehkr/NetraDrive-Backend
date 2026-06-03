@@ -1,3 +1,5 @@
+import os
+import tempfile
 from pyrogram import Client
 from pyrogram.types import Message
 from typing import AsyncGenerator
@@ -5,13 +7,17 @@ from app.config import settings
 from app.utils.progress import progress
 from app.services.transfer_manager import transfer_manager
 
+WORK_DIR = os.path.join(tempfile.gettempdir(), "netradrive_cloud")
+os.makedirs(WORK_DIR, exist_ok=True)
+
 # Initialize the Telegram client purely in-memory using your session string
 app = Client(
-    name="netradrive_memory",
+    name="netradrive",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     session_string=settings.telegram_session_string,
-    in_memory=True,
+    workdir=WORK_DIR,
+    in_memory=False,
     sleep_threshold=15,
     max_concurrent_transmissions=5,
 )
@@ -25,7 +31,7 @@ class TelegramService:
 
     async def start(self):
         if not self.client.is_connected:
-            print("Connecting Pyrogram client (In-Memory)...")
+            print(f"Connecting Pyrogram client (Workdir: {WORK_DIR})...")
             await self.client.start()
 
             try:
@@ -34,7 +40,6 @@ class TelegramService:
             except Exception as e:
                 print(f"Warning: {e}. Fetching dialogs to populate peer database...")
                 try:
-                    # Fetching dialogs forces Pyrogram to securely cache chat hashes
                     async for _ in self.client.get_dialogs(limit=50):
                         pass
                     print("Peer database populated successfully!")
