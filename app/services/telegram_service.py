@@ -11,10 +11,11 @@ os.makedirs(settings.telegram_workdir, exist_ok=True)
 
 # Initialize the Telegram client
 app = Client(
-    settings.telegram_session_name,
+    name="netradrive_memory",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
-    workdir=settings.telegram_workdir,
+    session_string=settings.telegram_session_string,
+    in_memory=True,
 )
 
 

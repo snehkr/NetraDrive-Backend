@@ -14,8 +14,7 @@ class Settings(BaseSettings):
     # Telegram
     telegram_api_id: int
     telegram_api_hash: str
-    telegram_session_name: str
-    telegram_workdir: str
+    telegram_session_string: str
     telegram_storage_chat_id: int
 
     # Email Settings
