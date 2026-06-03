@@ -1,3 +1,4 @@
+import os
 from pyrogram import Client
 from pyrogram.types import Message
 from typing import AsyncGenerator
@@ -5,13 +6,19 @@ from app.config import settings
 from app.utils.progress import progress
 from app.services.transfer_manager import transfer_manager
 
+# Create a safe temporary directory for the ephemeral session file
+WORK_DIR = "/tmp/netradrive"
+os.makedirs(WORK_DIR, exist_ok=True)
+
 # Initialize the Telegram client
 app = Client(
-    name="netradrive_memory",
+    name="netradrive_cloud",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     session_string=settings.telegram_session_string,
-    in_memory=True,
+    workdir=WORK_DIR,
+    in_memory=False,  # Use ephemeral disk to prevent SQLite memory deadlocks
+    sleep_threshold=15,
 )
 
 
@@ -24,13 +31,14 @@ class TelegramService:
     async def start(self):
         if not self.client.is_connected:
             await self.client.start()
-            print("Fetching dialogs to populate peer cache...")
+            print("Pyrogram client connected.")
+
+            # Force cache the storage chat to prevent PeerIdInvalid
             try:
-                async for _ in self.client.get_dialogs(limit=50):
-                    pass
-                print("Peer cache successfully populated.")
+                chat = await self.client.get_chat(self.chat_id)
+                print(f"Storage channel '{chat.title or chat.id}' successfully cached!")
             except Exception as e:
-                print(f"Failed to fetch dialogs: {e}")
+                print(f"WARNING: Failed to cache storage chat on startup. {str(e)}")
 
     async def stop(self):
         if self.client.is_connected:
